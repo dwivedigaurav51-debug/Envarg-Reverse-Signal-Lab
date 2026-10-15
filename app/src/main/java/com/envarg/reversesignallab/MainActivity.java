@@ -30,6 +30,10 @@ public class MainActivity extends Activity {
  @Override protected void onActivityResult(int r,int c,Intent d){super.onActivityResult(r,c,d);
  if(r==PICK&&pending!=null){pending.onReceiveValue(c==RESULT_OK&&d!=null?new Uri[]{d.getData()}:null);pending=null;}}
  public class SourceBridge {
+  @JavascriptInterface public void startMonitor(){runOnUiThread(()->{try{Intent i=new Intent(MainActivity.this,ScannerService.class);if(android.os.Build.VERSION.SDK_INT>=26)startForegroundService(i);else startService(i);}catch(Exception e){getSharedPreferences(ScannerService.PREF,0).edit().putString("lastError",e.toString()).apply();}});}
+  @JavascriptInterface public void stopMonitor(){runOnUiThread(()->{Intent i=new Intent(MainActivity.this,ScannerService.class);i.setAction("STOP");startService(i);});}
+  @JavascriptInterface public String monitorStatus(){android.content.SharedPreferences p=getSharedPreferences(ScannerService.PREF,0);JSONObject j=new JSONObject();try{j.put("running",p.getBoolean("running",false));j.put("lastCheck",p.getLong("lastCheck",0));j.put("sourceItems",p.getInt("sourceItems",0));j.put("error",p.getString("lastError",""));}catch(Exception ignored){}return j.toString();}
+
   @JavascriptInterface public void fetchFiveMinute(String symbol){
    if(symbol==null||!symbol.matches("[A-Z0-9_]{3,24}"))return;
    network.execute(()->{
