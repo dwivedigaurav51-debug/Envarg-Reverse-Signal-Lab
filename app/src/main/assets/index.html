@@ -46,7 +46,7 @@ function verifiedSource(payload,symbol){
  return candidates[0];
 }
 
-let liveMode=true,liveSeen=new Set(),liveSettled=[],liveOpen=[],liveTrades=[],liveLastPoll=0,liveFailures=0;
+let liveMode=true,liveSeen=new Set(),liveSettled=[],liveOpen=[],liveTrades=[],liveLastPoll=0,liveFailures=0,sourceChecks=0;
 function liveEvaluate(symbol,pts){
  const now=Date.now(),maxAge=11*60000;
  if(!pts.length||now-pts[pts.length-1].ts>maxAge)throw Error('STALE candle: last '+new Date(pts[pts.length-1].ts).toLocaleTimeString());
@@ -80,7 +80,7 @@ function liveEvaluate(symbol,pts){
  }
 }
 window.envargNativeFeed=function(symbol,payload,error){
- liveLastPoll=Date.now();
+ liveLastPoll=Date.now();sourceChecks++;
  if(error){liveFailures++;$('liveCheck').textContent='SOURCE ERROR '+error;$('live').textContent='● SOURCE ERROR';return}
  try{
   let found=verifiedSource(payload,symbol);
@@ -96,7 +96,7 @@ setInterval(pollLive,30000);
 setTimeout(pollLive,1200);
 function updateMonitor(){
  try{let raw=window.EnvargSource?.monitorStatus?.();if(!raw)return;let s=JSON.parse(raw),last=s.lastCheck?new Date(s.lastCheck).toLocaleTimeString():'never',fresh=s.lastCheck&&Date.now()-s.lastCheck<420000;
- $('monitorStatus').textContent=(s.running?(fresh?(s.error?'MONITOR RUNNING · SOURCE ERROR':'MONITOR RUNNING · CONNECTIVITY ONLY'):'MONITOR STALE'):'MONITOR STOPPED')+' · last check '+last+(s.error?' · '+s.error:'');
+ $('monitorStatus').textContent=(s.running?(fresh?(s.error?'MONITOR RUNNING · SOURCE ERROR':'MONITOR RUNNING · CONNECTIVITY ONLY'):'MONITOR STALE'):'MONITOR STOPPED')+' · last attempt '+last+(s.error?' · FAILED: '+s.error:' · request succeeded');
  }catch(e){$('monitorStatus').textContent='Monitor status error: '+e.message}
 }
 $('monitorOn').onclick=()=>{if(!window.EnvargSource?.startMonitor){$('monitorStatus').textContent='Native service unavailable';return}window.EnvargSource.startMonitor();setTimeout(updateMonitor,1000)};
