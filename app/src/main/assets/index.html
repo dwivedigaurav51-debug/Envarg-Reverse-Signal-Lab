@@ -74,7 +74,7 @@ function liveEvaluate(symbol,pts){
   if((!$('lossOnly').checked||v.qualified)&&p.ts>=now-330000){v.selected=true;liveOpen.push(v);liveTrades.push(v)}
  }
  liveSettled=liveSettled.slice(-300);liveTrades=liveTrades.slice(-300);liveSeen=new Set([...liveSeen].slice(-1200));$('scanDiag').textContent='Source checks: '+sourceChecks+' · evaluated: '+liveCandidates+' · LOSS-qualified: '+liveQualified+' · filtered: '+liveFiltered+' · latest: '+liveLatestRate+' · threshold '+threshold()+'% / '+sample()+' samples · 1 asset connected';
- if(liveMode){let selected=$('asset').value,filter=v=>selected==='ALL'||v.asset===selected,ss=lastSignals.filter(v=>filter(v)&&(!$('lossOnly').checked||v.qualified)),hs=liveTrades.filter(filter),closed=hs.filter(v=>v.settled);
+ if(liveMode){let selected=$('asset').value,filter=v=>selected==='ALL'||v.asset===selected,ss=lastSignals.filter(v=>filter(v)&&(!$('lossOnly').checked||v.qualified)),hs=liveTrades.filter(filter),closed=hs.filter(v=>v.settled),comp=closed.filter(v=>v.originalWin!==null);$('reverseStats').textContent='Settled virtual signals: '+comp.length+' · Original LOSS '+(comp.length?Math.round(comp.filter(v=>v.originalWin===false).length/comp.length*100):0)+'% · Reverse WIN '+(comp.length?Math.round(comp.filter(v=>v.reverseWin===true).length/comp.length*100):0)+'% · 80–90% not guaranteed';
  $('trades').textContent=hs.length+' ('+closed.length+' settled)';$('losses').textContent=closed.filter(v=>v.win===false).length;
  $('pnl').textContent='$'+closed.reduce((s,v)=>s+v.pnl,0).toFixed(2);
  $('signals').innerHTML=ss.length?ss.slice(0,25).map(v=>'<tr><td>'+new Date(v.ts).toLocaleTimeString()+'</td><td>'+esc(v.asset)+'</td><td>'+esc(v.label)+' · '+v.dir+'</td><td>'+esc(v.score)+'</td><td>Virtual</td></tr>').join(''):'<tr><td colspan="5">No qualifying LOSS signal at chosen threshold/sample; adjust settings to compare</td></tr>';
@@ -89,7 +89,7 @@ window.envargNativeFeed=function(symbol,payload,error){
   liveEvaluate(symbol,found.pts);liveFailures=0;
   $('liveCheck').textContent='Source checked '+new Date().toLocaleTimeString()+' · '+found.pts.length+' candles · last '+new Date(found.last).toLocaleTimeString();
   $('live').textContent='● 5m SOURCE';
-  $('state').textContent='Live virtual scan: '+symbol+' · '+liveOpen.length+' pending · '+liveTrades.length+' selected $1 virtual trades · Threshold '+threshold()+'% / sample '+sample()';
+  $('state').textContent='Live virtual scan: '+symbol+' · '+liveOpen.length+' pending · '+liveTrades.length+' selected $1 virtual trades · Threshold '+threshold()+'% / sample '+sample();
  }catch(e){liveFailures++;$('liveCheck').textContent='DATA ERROR: '+e.message;$('live').textContent='● DATA ERROR'}
 };
 function pollLive(){if(!liveMode)return;if(!window.EnvargSource?.fetchFiveMinute){$('liveCheck').textContent='No Android bridge';return}window.EnvargSource.fetchFiveMinute('EURUSD_OTC')}
