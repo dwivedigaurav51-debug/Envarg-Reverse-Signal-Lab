@@ -48,7 +48,7 @@ function verifiedSource(payload,symbol){
 
 let liveMode=true,liveSeen=new Set(),liveSettled=[],liveOpen=[],liveTrades=[],liveLastPoll=0,liveFailures=0,sourceChecks=0,liveCandidates=0,liveQualified=0,liveFiltered=0,liveLatestRate='—';
 function threshold(){return Number($('threshold').value)}function sample(){return Number($('sample').value)}function directionMode(){return $('directionMode').value}
-function lossLabel(rate,n){return n<sample()?'INSUFFICIENT DATA':rate>=90?'STRONG LOSS':rate>=threshold()?'LOSS':'NO LOSS EDGE'}
+function lossLabel(rate,n){return n<sample()?'INSUFFICIENT DATA':rate>=90?'HIGH STRONG LOSS':rate>=threshold()?'LOSS':'NO LOSS EDGE'}
 function gapBar(v){if(!v.settled||!Number.isFinite(v.exit)||!Number.isFinite(v.entry)||v.entry<=0)return '<span class="small">Pending</span>';let move=Math.abs((v.exit-v.entry)/v.entry*100),scale=Math.max(.001,Number($('gapScale').value)||.1),fill=Math.min(100,move/scale*100),outcome=v.win===null?'TIE':v.win?'WIN':'LOSS';return '<div class="gapnote">'+outcome+' · '+move.toFixed(4)+'% price gap</div><div class="gapbar"><div class="gapfill '+(v.win===false?'loss':'')+'" style="width:'+fill.toFixed(2)+'%"></div></div><div class="gapnote">0 ─ '+fill.toFixed(0)+'/100 ─ 100</div>'}
 function liveEvaluate(symbol,pts){
  const now=Date.now(),maxAge=11*60000;
