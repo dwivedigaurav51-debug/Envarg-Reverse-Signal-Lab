@@ -108,5 +108,5 @@ $('monitorOn').onclick=()=>{if(!window.EnvargSource?.startMonitor){$('monitorSta
 $('monitorOff').onclick=()=>{window.EnvargSource?.stopMonitor?.();setTimeout(updateMonitor,1000)};
 setInterval(updateMonitor,12000);setTimeout(updateMonitor,500);
 ['threshold','sample','directionMode','gapScale'].forEach(id=>$(id).onchange=()=>{$('state').textContent='New settings apply to future virtual entries only; old trades retain their original mode.'});
-try{savedTrades=JSON.parse(localStorage.getItem('envarg_archive_v54')||'[]')}catch(e){savedTrades=[]}opts();try{let s=JSON.parse(localStorage.getItem('envarg_virtual_v43')||'null');if(s){$('payout').value=s.payout||80;$('state').textContent='Saved settings found. Reimport CSV; previous trades are not restored to avoid mixing datasets.'}}catch(e){}
+try{savedTrades=JSON.parse(localStorage.getItem('envarg_archive_v54')||'[]')}catch(e){savedTrades=[]}$('archiveBox').ontoggle=()=>{if($('archiveBox').open)renderArchive()};renderArchive();opts();try{let s=JSON.parse(localStorage.getItem('envarg_virtual_v43')||'null');if(s){$('payout').value=s.payout||80;$('state').textContent='Saved settings found. Reimport CSV; previous trades are not restored to avoid mixing datasets.'}}catch(e){}
 </script></body></html>
