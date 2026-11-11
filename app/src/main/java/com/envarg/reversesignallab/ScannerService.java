@@ -24,7 +24,7 @@ public class ScannerService extends Service {
  private final Handler handler=new Handler(Looper.getMainLooper());
  private final ExecutorService worker=Executors.newSingleThreadExecutor();
  private volatile boolean active=false;
- private final Runnable tick=new Runnable(){public void run(){if(!active)return;worker.execute(()->probe());handler.postDelayed(this,60000L);}};
+ private final Runnable tick=new Runnable(){public void run(){if(!active)return;worker.execute(()->probe());handler.postDelayed(this,15000L);}};
  @Override public void onCreate(){super.onCreate();if(Build.VERSION.SDK_INT>=26){NotificationChannel c=new NotificationChannel("envarg_scan","Virtual scanner status",NotificationManager.IMPORTANCE_LOW);getSystemService(NotificationManager.class).createNotificationChannel(c);}}
  @Override public int onStartCommand(Intent intent,int flags,int startId){
  if(intent!=null&&"STOP".equals(intent.getAction())){stopScanner();return START_NOT_STICKY;}
