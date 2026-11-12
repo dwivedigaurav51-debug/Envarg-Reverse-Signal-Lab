@@ -17,6 +17,7 @@ import org.json.JSONObject;
 public class MainActivity extends Activity {
  WebView web; ValueCallback<Uri[]> pending; final int PICK=100; final ExecutorService network=Executors.newFixedThreadPool(2);
  @Override public void onCreate(Bundle b){super.onCreate(b);
+ if(android.os.Build.VERSION.SDK_INT>=33&&checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=android.content.pm.PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"},221);}
  web=new WebView(this); web.getSettings().setJavaScriptEnabled(true);
  web.getSettings().setAllowFileAccess(true);
  web.getSettings().setAllowFileAccessFromFileURLs(false);
