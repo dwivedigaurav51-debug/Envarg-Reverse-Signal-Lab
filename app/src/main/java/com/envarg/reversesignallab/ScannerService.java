@@ -48,7 +48,7 @@ public class ScannerService extends Service {
   if(pts.size()<5)return;settlePending(pts);assessMarketHealth(pts);long latest=pts.lastKey();if(System.currentTimeMillis()-latest>660000L)return;
   Double prev=pts.get(latest-900000L),entry=pts.get(latest);if(prev==null||entry==null||entry.equals(prev))return;
   String dir=entry>prev?"UP":"DOWN";SharedPreferences p=getSharedPreferences(PREF,0);long old=p.getLong("lastSignalTs",0);
-  if(latest>old){saveCandidate(latest,entry,dir);}
+  if(latest>old){saveCandidate(latest,entry,dir,pts);}
  }
  private void assessMarketHealth(TreeMap<Long,Double> pts){
   if(pts.size()<41)return;
@@ -84,15 +84,37 @@ public class ScannerService extends Service {
    .setContentIntent(pending).setAutoCancel(true).setPriority(Notification.PRIORITY_HIGH).setDefaults(Notification.DEFAULT_ALL);
   ((NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE)).notify(204,n.build());
  }
- private synchronized void saveCandidate(long ts,double entry,String dir){
+ private String nativeSkipReason(JSONArray history,TreeMap<Long,Double> pts,String dir){
+  int streak=0,settled=0,wins=0;boolean streakOpen=true;
+  for(int i=history.length()-1;i>=0;i--){
+   JSONObject x=history.optJSONObject(i);if(x==null)continue;
+   String outcome=x.optString("result");if(!outcome.equals("WIN")&&!outcome.equals("LOSS"))continue;
+   if(streakOpen){if(outcome.equals("LOSS"))streak++;else streakOpen=false;}
+   if(settled<20){settled++;if(outcome.equals("WIN"))wins++;}
+  }
+  // This is a conservative candidate gate, not a predictive model.
+  if(streak>=2)return "2+ CONSECUTIVE LOSSES · SHADOW ONLY";
+  if(settled>=10&&wins*1.0/settled<.5)return "RECENT NATIVE WIN RATE BELOW 50%";
+  // Avoid re-issuing the same 3-candle direction after two matching losses.
+  int similarLoss=0,similarTotal=0;
+  for(int i=history.length()-1;i>=0;i--){
+   JSONObject x=history.optJSONObject(i);if(x==null||!dir.equals(x.optString("dir")))continue;
+   String result=x.optString("result");if(!result.equals("WIN")&&!result.equals("LOSS"))continue;
+   similarTotal++;if(result.equals("LOSS"))similarLoss++;if(similarTotal>=8)break;
+  }
+  if(similarTotal>=5&&similarLoss*1.0/similarTotal>=.6)return "REPEATED DIRECTION LOSS "+similarLoss+"/"+similarTotal;
+  return "";
+ }
+ private synchronized void saveCandidate(long ts,double entry,String dir,TreeMap<Long,Double> pts){
   SharedPreferences p=getSharedPreferences(PREF,0);
   try{
    JSONArray history=new JSONArray(p.getString("nativeHistory","[]"));
-   JSONObject item=new JSONObject();item.put("ts",ts);item.put("entry",entry);item.put("expiry",ts+300000L);item.put("dir",dir);item.put("result","PENDING");item.put("type","NATIVE 3-CANDLE CANDIDATE · NOT V7 AI");
+   String skipReason=nativeSkipReason(history,pts,dir);boolean skipped=!skipReason.isEmpty();
+   JSONObject item=new JSONObject();item.put("selected",!skipped);item.put("skipReason",skipReason);item.put("ts",ts);item.put("entry",entry);item.put("expiry",ts+300000L);item.put("dir",dir);item.put("result","PENDING");item.put("type",skipped?"SHADOW ONLY · SAFETY SKIP":"NATIVE 3-CANDLE CANDIDATE · NOT V7 AI");
    history.put(item);JSONArray trimmed=new JSONArray();for(int i=Math.max(0,history.length()-200);i<history.length();i++)trimmed.put(history.get(i));
-   p.edit().putLong("lastSignalTs",ts).putString("lastSignalDir",dir).putString("lastSignalType","NATIVE CANDIDATE · UNVALIDATED").putLong("lastSignalRecordedAt",System.currentTimeMillis()).putString("nativeHistory",trimmed.toString()).commit();
+   p.edit().putLong("lastSignalTs",ts).putString("lastSignalDir",dir).putString("lastSignalType",skipped?"SHADOW SKIP · "+skipReason:"NATIVE CANDIDATE · UNVALIDATED").putLong("lastSignalRecordedAt",System.currentTimeMillis()).putString("nativeHistory",trimmed.toString()).commit();
    Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,"envarg_scan"):new Notification.Builder(this);
-   b.setSmallIcon(android.R.drawable.stat_notify_sync).setContentTitle("ENVARG OTC virtual candidate").setContentText(dir+" · 5m · unvalidated · no real order").setAutoCancel(true);
+   b.setSmallIcon(android.R.drawable.stat_notify_sync).setContentTitle(skipped?"ENVARG candidate SKIPPED":"ENVARG OTC virtual candidate").setContentText(skipped?skipReason:dir+" · 5m · unvalidated · no real order").setAutoCancel(true);
    ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(102,b.build());
   }catch(Exception e){p.edit().putString("lastError","Save candidate: "+e.getMessage()).apply();}
  }
