@@ -3,6 +3,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,3 +24,14 @@ jobs:
         with:
           name: Envarg-Reverse-Signal-Lab-debug-APK
           path: app/build/outputs/apk/debug/*.apk
+
+      - name: Publish directly downloadable APK release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK=$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -type f | head -n 1)
+          test -n "$APK" && test -s "$APK"
+          VERSION=$(grep -o "versionName '[^']*'" app/build.gradle | head -n 1 | cut -d"'" -f2)
+          TAG="apk-v${VERSION}-run${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" "$APK#Envarg-Signal-Pro-v${VERSION}.apk" --title "ENVARG Signal Pro v${VERSION} APK" --notes "Android debug APK for virtual research only. Download the .apk asset directly. Not a verified trading signal." --latest
