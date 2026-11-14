@@ -342,7 +342,7 @@ function liveEvaluate(symbol,pts){
  for(let t of liveOpen.filter(v=>v.symbol===symbol)){
   if(map.has(t.expiry)){let end=map.get(t.expiry);t.exit=end;t.originalWin=end===t.entry?null:(end>t.entry)===(t.dir==='UP');t.reverseWin=t.originalWin===null?null:!t.originalWin;t.win=t.mode==='original'?t.originalWin:t.mode==='reverse'?t.reverseWin:null;t.pnl=t.win===null?0:t.win?t.entryPayout:-1;t.settled=true;liveSettled.push(t);if(t.features)researchStore(t);v11Record(t)}
  }
- liveOpen=liveOpen.filter(t=>!t.settled);archiveSettled(liveTrades);marketHealth=marketHealthAssess(pts,symbol);marketHealthRender();v11Current=v11Metrics(pts,pts.length-1);olTargetUpdate();v11HealthRecord(pts,symbol,marketHealth);v11Render();v11NotifyIfNeeded(marketHealth,pts[pts.length-1].ts);
+ liveOpen=liveOpen.filter(t=>!t.settled);archiveSettled(liveTrades);marketHealth=marketHealthAssess(pts,symbol);marketHealthRender();v11Current=v11Metrics(pts,pts.length-1);olTargetUpdate();ol2050Update(pts);v11HealthRecord(pts,symbol,marketHealth);v11Render();v11NotifyIfNeeded(marketHealth,pts[pts.length-1].ts);
  // Only issue virtual signals on newly observed latest candle. Older candles warm up loss scoring.
  for(let i=3;i<pts.length;i++){
   let p=pts[i],key=symbol+':'+p.ts;if(liveSeen.has(key))continue;
@@ -467,4 +467,6 @@ function olTargetUpdate(){
 for(let id of ['olCapital','olStake','olRiskPct','olTarget','olPayout'])$(id).oninput=olTargetUpdate;
 try{let z=JSON.parse(localStorage.getItem(OL_TARGET_KEY)||'null');if(z){$('olCapital').value=z.cap;$('olStake').value=z.base;$('olRiskPct').value=z.pct;$('olTarget').value=z.goal;$('olPayout').value=z.payout}}catch(e){}
 olTargetUpdate();
+
+function ol2050Update(pts){let fresh=!!(pts&&pts.length>41&&Date.now()-pts[pts.length-1].ts<660000);let score=Number(v11Current.score)||0;let health=marketHealth.level;let cap=Number($('olCapital').value);let stake=Number($('olStake').value);let risk=Number($('olRiskPct').value);let safe=cap>0&&stake>0&&stake<=cap*.02&&stake<=cap*risk/100;$('ol2050Pulse').textContent=fresh?v11Current.trend:'NO DATA';$('ol2050Council').textContent=score+'/100';$('ol2050Safety').textContent=safe?'ACTIVE':'STOP';$('ol2050Decision').textContent=!safe?'STOP':!fresh?'WAIT':'RESEARCH';$('ol2050Evidence').textContent='Health '+health+' · rule-based research only';}
 </script></body></html>
