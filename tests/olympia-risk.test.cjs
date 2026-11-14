@@ -1,0 +1,28 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const root='app/src/main/assets/';
+const source=fs.readFileSync(root+'olympia2050.js','utf8');
+new vm.Script(source);
+const elements=new Map(),get=id=>{if(!elements.has(id))elements.set(id,{value:'',textContent:'',addEventListener(){},onclick:null});return elements.get(id)};
+for(const [id,v] of Object.entries({olCapital:'70',olStake:'1',olRiskPct:'3',olTarget:'10',olPayout:'85'}))get(id).value=v;
+const store=new Map(),localStorage={getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v)};
+const context={window:{},document:{getElementById:get,createElement:()=>({click(){}})},localStorage,Date,Math,Number,JSON,Array,Object,String,Blob,URL:{createObjectURL:()=>'',revokeObjectURL(){}},setTimeout(){},console,
+ savedTrades:[],liveOpen:[],v11DailyHealth:[],v11Current:{score:90,trend:'UP',falseSignal:false},marketHealth:{level:'EXCELLENT'},oneWaySlot:()=> '10:00',oneWayDays:[]};
+vm.createContext(context);vm.runInContext(source,context);
+const now=Math.floor(Date.now()/300000)*300000;
+let pts=Array.from({length:42},(_,i)=>({ts:now-(41-i)*300000,price:1+i*.0001}));
+let check=context.window.ol2050Gate;
+assert.strictEqual(check(pts,now).allow,false,'missing time DNA must not allow');
+context.v11DailyHealth=Array.from({length:6},(_,i)=>({slot:'10:00',level:'GOOD'}));
+assert.strictEqual(check(pts,now).allow,true,'valid research gate');
+assert(check(pts,now).stake<=1.4,'2 percent cap');
+context.liveOpen=[{selected:true,settled:false,ts:Date.now(),stake:1.4}];
+assert.strictEqual(check(pts,now).allow,false,'pending exposure blocks overspending');
+context.liveOpen=[];
+get('olRiskPct').value='0';
+assert.strictEqual(check(pts,now).allow,false,'invalid risk budget blocks');
+get('olRiskPct').value='3';
+assert.strictEqual(check(pts.slice(0,-1),now).allow,false,'candle mismatch blocks');
+assert.strictEqual(check(pts.map(p=>({...p,ts:p.ts-86400000})),now-86400000).allow,false,'stale candles block');
+context.savedTrades=[{ts:Date.now(),win:true,stake:1,pnl:10.2}];
+assert.strictEqual(check(pts,now).allow,false,'daily target reached blocks');
+console.log('Olympia 2050 gate: 7 checks passed');
