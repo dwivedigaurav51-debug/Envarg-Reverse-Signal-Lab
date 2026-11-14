@@ -33,7 +33,7 @@ function model(pts){
  else if(paper.pnl>=goal){decision='STOP';reason='Illustrative paper target reached'}
  else if(remaining<stake||stake>cap*.02){decision='STOP';reason='Capital / daily risk limit'}
  else if(!fresh){reason='Missing, stale or discontinuous candles'}
- else if(count<4){decision='SKIP';reason='Rule council lacks agreement'}
+ else if(count<5){decision='SKIP';reason='All five risk and evidence checks required'}
  else{decision='RESEARCH';reason='Research candidate only; no real-money order'}
  return {cap,stake,risk,goal,fresh,health,score,net,eff,slot,sample,favorable,paper,budget,remaining,votes,count,decision,reason,ts:fresh?pts[pts.length-1].ts:null};
 }
