@@ -31,7 +31,7 @@ public class ScannerService extends Service {
  @Override public int onStartCommand(Intent intent,int flags,int startId){
  if(intent!=null&&"STOP".equals(intent.getAction())){stopScanner();return START_NOT_STICKY;}
  Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,"envarg_scan"):new Notification.Builder(this);
- b.setContentTitle("Envarg source monitor").setContentText("Checking OTC candles in background; virtual only").setSmallIcon(android.R.drawable.stat_notify_sync).setOngoing(true);
+ b.setContentTitle("Olympia 2050 source monitor").setContentText("Checking OTC candles in background; virtual only").setSmallIcon(android.R.drawable.stat_notify_sync).setOngoing(true);
  startForeground(101,b.build());active=true;getSharedPreferences(PREF,0).edit().putBoolean("running",true).apply();handler.removeCallbacks(tick);handler.post(tick);return START_STICKY;
  }
  private void probe(){HttpURLConnection conn=null;String err="";int count=0;try{
@@ -78,7 +78,7 @@ public class ScannerService extends Service {
   Notification.Builder n=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,"envarg_health"):new Notification.Builder(this);
   Intent open=new Intent(this,MainActivity.class);open.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP);
   PendingIntent pending=PendingIntent.getActivity(this,0,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-  n.setSmallIcon(android.R.drawable.stat_notify_more).setContentTitle("ENVARG · "+level+" MARKET")
+  n.setSmallIcon(android.R.drawable.stat_notify_more).setContentTitle("OLYMPIA · "+level+" MARKET")
    .setContentText("EUR/USD OTC 5m conditions look favorable. Not a guaranteed WIN.")
    .setStyle(new Notification.BigTextStyle().bigText("EUR/USD OTC market health: "+level+". Review the app and strict risk checks. This is an unvalidated market-condition alert, NOT a trading instruction."))
    .setContentIntent(pending).setAutoCancel(true).setPriority(Notification.PRIORITY_HIGH).setDefaults(Notification.DEFAULT_ALL);
@@ -109,12 +109,12 @@ public class ScannerService extends Service {
   SharedPreferences p=getSharedPreferences(PREF,0);
   try{
    JSONArray history=new JSONArray(p.getString("nativeHistory","[]"));
-   String skipReason=nativeSkipReason(history,pts,dir);boolean skipped=!skipReason.isEmpty();
+   String skipReason="BACKGROUND SHADOW ONLY · no synchronized risk budget";boolean skipped=true;
    JSONObject item=new JSONObject();item.put("selected",!skipped);item.put("skipReason",skipReason);item.put("ts",ts);item.put("entry",entry);item.put("expiry",ts+300000L);item.put("dir",dir);item.put("result","PENDING");item.put("type",skipped?"SHADOW ONLY · SAFETY SKIP":"NATIVE 3-CANDLE CANDIDATE · NOT V7 AI");
    history.put(item);JSONArray trimmed=new JSONArray();for(int i=Math.max(0,history.length()-200);i<history.length();i++)trimmed.put(history.get(i));
    p.edit().putLong("lastSignalTs",ts).putString("lastSignalDir",dir).putString("lastSignalType",skipped?"SHADOW SKIP · "+skipReason:"NATIVE CANDIDATE · UNVALIDATED").putLong("lastSignalRecordedAt",System.currentTimeMillis()).putString("nativeHistory",trimmed.toString()).commit();
    Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,"envarg_scan"):new Notification.Builder(this);
-   b.setSmallIcon(android.R.drawable.stat_notify_sync).setContentTitle(skipped?"ENVARG candidate SKIPPED":"ENVARG OTC virtual candidate").setContentText(skipped?skipReason:dir+" · 5m · unvalidated · no real order").setAutoCancel(true);
+   b.setSmallIcon(android.R.drawable.stat_notify_sync).setContentTitle("OLYMPIA background shadow observation").setContentText(skipped?skipReason:dir+" · 5m · unvalidated · no real order").setAutoCancel(true);
    ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(102,b.build());
   }catch(Exception e){p.edit().putString("lastError","Save candidate: "+e.getMessage()).apply();}
  }
