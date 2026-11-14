@@ -16,7 +16,7 @@ function currentPaper(){
 }
 function model(pts){
  const cap=n('olCapital'),stake=n('olStake'),risk=n('olRiskPct'),goal=n('olTarget');
- const fresh=Array.isArray(pts)&&pts.length>=42&&pts.slice(-42).every((p,i,a)=>i===0||p.ts-a[i-1].ts===300000)&&Date.now()-pts[pts.length-1].ts<=660000;
+ const fresh=Array.isArray(pts)&&pts.length>=42&&pts.slice(-42).every((p,i,a)=>i===0||p.ts-a[i-1].ts===300000)&&Date.now()-pts[pts.length-1].ts>=0&&Date.now()-pts[pts.length-1].ts<=660000;
  const health=marketHealth?.level||'UNAVAILABLE',metric=v11Current||{};
  const m=fresh?pts.slice(-21).map((p,i,a)=>i?p.price-a[i-1].price:0).slice(1):[];
  const abs=m.reduce((v,x)=>v+Math.abs(x),0),net=m.reduce((v,x)=>v+x,0),eff=abs?Math.abs(net)/abs:0;
@@ -69,7 +69,8 @@ window.ol2050Gate=function(pts,candleTs){
  // Reserve pending exposure so repeated signals cannot exceed daily loss budget.
  const pending=(Array.isArray(liveOpen)?liveOpen:[]).filter(t=>t.selected&&!t.settled&&today(t.ts)===today(Date.now())).reduce((a,t)=>a+(Number(t.stake)||0),0);
  const remaining=x.remaining-pending;
- const proposed=Math.min(base,cap*.02,remaining);
+ const multiplier=x.health==='EXCELLENT'&&x.score>=85?3:x.health==='EXCELLENT'&&x.score>=75?2:1;
+ const proposed=Math.min(base*multiplier,cap*.02,remaining);
  if(proposed<base)return {allow:false,reason:'Insufficient risk budget including pending exposure'};
  if(x.paper.pnl>=x.goal)return {allow:false,reason:'Daily virtual profit target reached'};
  return {allow:true,stake:Number(proposed.toFixed(2)),payout:pay,reason:'Research-only virtual entry'};
