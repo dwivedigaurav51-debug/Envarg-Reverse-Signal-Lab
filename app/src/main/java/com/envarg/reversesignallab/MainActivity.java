@@ -2,6 +2,8 @@ package com.envarg.olympiatradesignal;
 import android.app.Activity;
 import android.os.Bundle;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.ValueCallback;
 import android.content.Intent;
@@ -22,6 +24,16 @@ public class MainActivity extends Activity {
  web.getSettings().setAllowFileAccess(true);
  web.getSettings().setAllowFileAccessFromFileURLs(false);
  web.addJavascriptInterface(new SourceBridge(),"EnvargSource");
+ // Prevent remote pages from inheriting the privileged native JS bridge.
+ web.setWebViewClient(new WebViewClient(){
+  private boolean handle(String url){
+   if(url!=null&&url.startsWith("file:///android_asset/"))return false;
+   try{Uri u=Uri.parse(url);String scheme=u.getScheme();if("https".equalsIgnoreCase(scheme)||"http".equalsIgnoreCase(scheme)){startActivity(new Intent(Intent.ACTION_VIEW,u));}}catch(Exception ignored){}
+   return true;
+  }
+  @Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest request){return handle(request.getUrl().toString());}
+  @Override public boolean shouldOverrideUrlLoading(WebView v,String url){return handle(url);}
+ });
  web.setWebChromeClient(new WebChromeClient(){
  @Override public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams p){
  if(pending!=null)pending.onReceiveValue(null); pending=cb;
