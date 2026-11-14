@@ -31,6 +31,11 @@ public class MainActivity extends Activity {
  @Override protected void onActivityResult(int r,int c,Intent d){super.onActivityResult(r,c,d);
  if(r==PICK&&pending!=null){pending.onReceiveValue(c==RESULT_OK&&d!=null?new Uri[]{d.getData()}:null);pending=null;}}
  public class SourceBridge {
+  @JavascriptInterface public String readOneWayHistory(){return getSharedPreferences("envarg_v11",MODE_PRIVATE).getString("oneway_days","[]");}
+  @JavascriptInterface public void saveOneWayHistory(String json){
+   if(json==null||json.length()>1500000)return;
+   try{org.json.JSONArray a=new org.json.JSONArray(json);if(a.length()>5000)return;getSharedPreferences("envarg_v11",MODE_PRIVATE).edit().putString("oneway_days",json).apply();}catch(Exception ignored){}
+  }
   @JavascriptInterface public String readMarketHistory(){return getSharedPreferences("envarg_v11",MODE_PRIVATE).getString("daily_market","[]");}
   @JavascriptInterface public void saveMarketHistory(String json){
    if(json==null||json.length()>1500000)return;
