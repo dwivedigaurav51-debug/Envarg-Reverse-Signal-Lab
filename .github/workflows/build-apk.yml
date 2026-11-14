@@ -2,7 +2,7 @@ name: Build Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [olympia-trade-signal]
 permissions:
   contents: write
 jobs:
@@ -22,16 +22,16 @@ jobs:
       - run: gradle assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
-          name: Envarg-Reverse-Signal-Lab-debug-APK
+          name: Olympia-Trade-Signal-debug-APK
           path: app/build/outputs/apk/debug/*.apk
 
       - name: Publish directly downloadable APK release
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/olympia-trade-signal'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           APK=$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -type f | head -n 1)
           test -n "$APK" && test -s "$APK"
           VERSION=$(grep -o "versionName '[^']*'" app/build.gradle | head -n 1 | cut -d"'" -f2)
-          TAG="apk-v${VERSION}-run${GITHUB_RUN_NUMBER}"
-          gh release create "$TAG" "$APK#Envarg-Signal-Pro-v${VERSION}.apk" --title "ENVARG Signal Pro v${VERSION} APK" --notes "Android debug APK for virtual research only. Download the .apk asset directly. Not a verified trading signal." --latest
+          TAG="olympia-v${VERSION}-run${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" "$APK#Olympia-Trade-Signal-v${VERSION}.apk" --title "Olympia Trade Signal v${VERSION} APK" --notes "Android debug APK for virtual research only. Download the .apk asset directly. Not a verified trading signal." 
