@@ -1,4 +1,4 @@
-package com.envarg.reversesignallab;
+package com.envarg.olympiatradesignal;
 import android.app.Activity;
 import android.os.Bundle;
 import android.webkit.WebView;
