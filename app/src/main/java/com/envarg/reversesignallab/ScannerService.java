@@ -1,4 +1,4 @@
-package com.envarg.reversesignallab;
+package com.envarg.olympiatradesignal;
 import android.app.Service;
 import android.app.Notification;
 import android.app.NotificationChannel;
