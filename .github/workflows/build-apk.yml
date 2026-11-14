@@ -21,6 +21,7 @@ jobs:
           gradle-version: '8.9'
       - name: Verify Olympia JavaScript and risk gate regression tests
         run: |
+          node -e "const fs=require('fs'),vm=require('vm');const h=fs.readFileSync('app/src/main/assets/index.html','utf8');const m=h.match(/<script>([\\s\\S]*?)<\\/script>/);if(!m)throw Error('Missing inline script');new vm.Script(m[1]);if(h.indexOf('</html>')!==h.lastIndexOf('</html>'))throw Error('Duplicate document tail');console.log('Inline JS and HTML structure PASS')"
           node --check app/src/main/assets/olympia2050.js
           node --check tests/olympia-risk.test.cjs
           node tests/olympia-risk.test.cjs
