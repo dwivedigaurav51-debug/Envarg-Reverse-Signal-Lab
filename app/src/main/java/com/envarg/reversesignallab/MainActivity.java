@@ -31,6 +31,25 @@ public class MainActivity extends Activity {
  @Override protected void onActivityResult(int r,int c,Intent d){super.onActivityResult(r,c,d);
  if(r==PICK&&pending!=null){pending.onReceiveValue(c==RESULT_OK&&d!=null?new Uri[]{d.getData()}:null);pending=null;}}
  public class SourceBridge {
+  @JavascriptInterface public String readResearchMemory(){return getSharedPreferences("envarg_v11",MODE_PRIVATE).getString("memory","[]");}
+  @JavascriptInterface public void saveResearchMemory(String json){
+   if(json==null||json.length()>1500000)return;
+   try{org.json.JSONArray a=new org.json.JSONArray(json);if(a.length()>3000)return;getSharedPreferences("envarg_v11",MODE_PRIVATE).edit().putString("memory",json).apply();}catch(Exception ignored){}
+  }
+  @JavascriptInterface public void notifyMarketCondition(String level,String message){
+   if(!("GOOD".equals(level)||"EXCELLENT".equals(level)))return;
+   runOnUiThread(()->{
+    try{
+     android.app.NotificationManager nm=(android.app.NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+     String channel="envarg_market_v11";
+     if(android.os.Build.VERSION.SDK_INT>=26){android.app.NotificationChannel ch=new android.app.NotificationChannel(channel,"Market condition alerts",android.app.NotificationManager.IMPORTANCE_DEFAULT);nm.createNotificationChannel(ch);}
+     android.app.Notification.Builder b=android.os.Build.VERSION.SDK_INT>=26?new android.app.Notification.Builder(MainActivity.this,channel):new android.app.Notification.Builder(MainActivity.this);
+     b.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("ENVARG "+level+" Market · Research").setContentText(message).setAutoCancel(true);
+     nm.notify(1101,b.build());
+    }catch(Exception ignored){}
+   });
+  }
+
   @JavascriptInterface public void startMonitor(){runOnUiThread(()->{try{Intent i=new Intent(MainActivity.this,ScannerService.class);if(android.os.Build.VERSION.SDK_INT>=26)startForegroundService(i);else startService(i);}catch(Exception e){getSharedPreferences(ScannerService.PREF,0).edit().putString("lastError",e.toString()).apply();}});}
   @JavascriptInterface public void stopMonitor(){runOnUiThread(()->{Intent i=new Intent(MainActivity.this,ScannerService.class);i.setAction("STOP");startService(i);});}
   @JavascriptInterface public String monitorStatus(){android.content.SharedPreferences p=getSharedPreferences(ScannerService.PREF,0);JSONObject j=new JSONObject();try{j.put("running",p.getBoolean("running",false));j.put("lastCheck",p.getLong("lastCheck",0));j.put("sourceItems",p.getInt("sourceItems",0));j.put("error",p.getString("lastError",""));j.put("nativeHistory",new org.json.JSONArray(p.getString("nativeHistory","[]")));j.put("lastSignalTs",p.getLong("lastSignalTs",0));j.put("lastSignalDir",p.getString("lastSignalDir",""));j.put("lastSignalType",p.getString("lastSignalType",""));j.put("lastSignalRecordedAt",p.getLong("lastSignalRecordedAt",0));}catch(Exception ignored){}return j.toString();}
