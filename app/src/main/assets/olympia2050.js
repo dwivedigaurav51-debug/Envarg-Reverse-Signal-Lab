@@ -11,9 +11,8 @@ const money=x=>'$'+(Number.isFinite(x)?x:0).toFixed(2);
 const set=(id,v)=>{const e=$(id);if(e)e.textContent=String(v)};
 function today(ts){const d=new Date(ts);return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')}
 function currentPaper(){
- const stake=n('olStake'),pay=n('olPayout')/100;
- const a=(Array.isArray(savedTrades)?savedTrades:[]).filter(x=>x&&Number.isFinite(Number(x.ts))&&today(Number(x.ts))===today(Date.now())&&typeof x.win==='boolean');
- return {count:a.length,wins:a.filter(x=>x.win).length,losses:a.filter(x=>!x.win).length,pnl:a.reduce((v,x)=>v+(x.win?stake*pay:-stake),0),assumption:'Uniform base stake and current payout; not actual execution P/L'};
+ const a=(Array.isArray(savedTrades)?savedTrades:[]).filter(x=>x&&Number.isFinite(Number(x.ts))&&today(Number(x.ts))===today(Date.now())&&typeof x.win==='boolean'&&Number.isFinite(x.stake)&&x.stake>0&&Number.isFinite(x.pnl));
+ return {count:a.length,wins:a.filter(x=>x.win).length,losses:a.filter(x=>!x.win).length,pnl:a.reduce((v,x)=>v+x.pnl,0),assumption:'Recorded virtual stake and entry payout only; legacy unpriced trades excluded'};
 }
 function model(pts){
  const cap=n('olCapital'),stake=n('olStake'),risk=n('olRiskPct'),goal=n('olTarget');
@@ -60,6 +59,22 @@ function render(x){
  if(lastKey!==key){lastKey=key;audit.push({recordedAt:Date.now(),candleTime:x.ts,decision:x.decision,reason:x.reason,health:x.health,score:x.score,efficiency:x.eff,votes:x.votes,virtualPaperCount:x.paper.count});audit=audit.slice(-2500);try{localStorage.setItem(KEY,JSON.stringify(audit))}catch(e){}}
  set('olBlackBox',audit.length+' local decision records · JSON export available; storage is not permanent backup');
 }
+// Fail-closed gate: checked synchronously before EVERY new WebView virtual entry.
+window.ol2050Gate=function(pts,candleTs){
+ try{
+ const x=model(pts),base=n('olStake'),cap=n('olCapital'),pay=n('olPayout')/100;
+ if(x.decision!=='RESEARCH')return {allow:false,reason:'2050 '+x.decision+' · '+x.reason};
+ if(!x.fresh||x.ts!==candleTs)return {allow:false,reason:'Candle freshness mismatch'};
+ if(!Number.isFinite(base)||base<=0||!Number.isFinite(pay)||pay<=0||pay>1)return {allow:false,reason:'Invalid stake/payout'};
+ // Reserve pending exposure so repeated signals cannot exceed daily loss budget.
+ const pending=(Array.isArray(liveOpen)?liveOpen:[]).filter(t=>t.selected&&!t.settled&&today(t.ts)===today(Date.now())).reduce((a,t)=>a+(Number(t.stake)||0),0);
+ const remaining=x.remaining-pending;
+ const proposed=Math.min(base,cap*.02,remaining);
+ if(proposed<base)return {allow:false,reason:'Insufficient risk budget including pending exposure'};
+ if(x.paper.pnl>=x.goal)return {allow:false,reason:'Daily virtual profit target reached'};
+ return {allow:true,stake:Number(proposed.toFixed(2)),payout:pay,reason:'Research-only virtual entry'};
+ }catch(e){return {allow:false,reason:'Risk gate error: '+e.message}}
+};
 window.ol2050Update=function(pts){if(pts)lastPts=pts;try{render(model(lastPts))}catch(e){set('ol2050Evidence','Module unavailable: '+e.message)}};
 function exportJson(name,data){const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),3000)}
 $('olExportBlackBox').onclick=()=>exportJson('Olympia2050_BlackBox.json',{exportedAt:new Date().toISOString(),audit,oneWay:typeof oneWayDays!=='undefined'?oneWayDays:[],healthHistory:typeof v11DailyHealth!=='undefined'?v11DailyHealth:[],paperTrades:savedTrades});
