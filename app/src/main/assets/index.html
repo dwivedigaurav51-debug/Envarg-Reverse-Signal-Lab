@@ -469,4 +469,4 @@ try{let z=JSON.parse(localStorage.getItem(OL_TARGET_KEY)||'null');if(z){$('olCap
 olTargetUpdate();
 
 function ol2050Update(pts){let fresh=!!(pts&&pts.length>41&&Date.now()-pts[pts.length-1].ts<660000);let score=Number(v11Current.score)||0;let health=marketHealth.level;let cap=Number($('olCapital').value);let stake=Number($('olStake').value);let risk=Number($('olRiskPct').value);let safe=cap>0&&stake>0&&stake<=cap*.02&&stake<=cap*risk/100;$('ol2050Pulse').textContent=fresh?v11Current.trend:'NO DATA';$('ol2050Council').textContent=score+'/100';$('ol2050Safety').textContent=safe?'ACTIVE':'STOP';$('ol2050Decision').textContent=!safe?'STOP':!fresh?'WAIT':'RESEARCH';$('ol2050Evidence').textContent='Health '+health+' · rule-based research only';}
-</script></body></html>
+</script><script src="olympia2050.js"></script></body></html>
