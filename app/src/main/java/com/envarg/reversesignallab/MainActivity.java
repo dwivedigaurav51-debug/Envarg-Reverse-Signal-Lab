@@ -72,6 +72,25 @@ public class MainActivity extends Activity {
    });
   }
 
+  @JavascriptInterface public void notifyGoodResearch(String direction,String symbol,long startMs,long endMs,int score){
+   if(!("UP".equals(direction)||"DOWN".equals(direction))||!"EURUSD_OTC".equals(symbol))return;
+   long now=System.currentTimeMillis();
+   if(startMs>now+15000||endMs<=now+15000||endMs-now>90000||score<65||score>100)return;
+   if(android.os.Build.VERSION.SDK_INT>=33&&checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=android.content.pm.PackageManager.PERMISSION_GRANTED)return;
+   runOnUiThread(()->{try{
+    String channel="olympia_good_research_blue_v1";
+    android.app.NotificationManager nm=(android.app.NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+    if(android.os.Build.VERSION.SDK_INT>=26){android.app.NotificationChannel ch=new android.app.NotificationChannel(channel,"Olympia GOOD research observations",android.app.NotificationManager.IMPORTANCE_DEFAULT);ch.enableVibration(false);nm.createNotificationChannel(ch);}
+    java.text.SimpleDateFormat fmt=new java.text.SimpleDateFormat("hh:mm:ss a",java.util.Locale.getDefault());
+    String body="Observed "+direction+" · "+fmt.format(new java.util.Date(startMs))+" – "+fmt.format(new java.util.Date(endMs))+" · strength "+score+"/100. 4/5 research checks only. NOT a trade instruction. No stake recommended.";
+    Intent open=new Intent(MainActivity.this,MainActivity.class);
+    android.app.PendingIntent pending=android.app.PendingIntent.getActivity(MainActivity.this,1,open,android.app.PendingIntent.FLAG_UPDATE_CURRENT|android.app.PendingIntent.FLAG_IMMUTABLE);
+    android.app.Notification.Builder n=android.os.Build.VERSION.SDK_INT>=26?new android.app.Notification.Builder(MainActivity.this,channel):new android.app.Notification.Builder(MainActivity.this);
+    n.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("🔵 GOOD · EUR/USD OTC · RESEARCH ONLY").setContentText(body).setStyle(new android.app.Notification.BigTextStyle().bigText(body)).setColor(0xff3299ff).setColorized(true).setContentIntent(pending).setAutoCancel(true).setPriority(android.app.Notification.PRIORITY_DEFAULT).setTimeoutAfter(Math.max(1000,endMs-now));
+    nm.notify(2051,n.build());
+   }catch(Exception ignored){}});
+  }
+
   @JavascriptInterface public void notifyResearchWindow(String direction,String symbol,long startMs,long endMs,double stake,int score){
    if(!("UP".equals(direction)||"DOWN".equals(direction))||!"EURUSD_OTC".equals(symbol))return;
    long now=System.currentTimeMillis();
