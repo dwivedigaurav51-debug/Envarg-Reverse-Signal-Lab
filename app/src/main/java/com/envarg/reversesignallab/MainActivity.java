@@ -78,9 +78,9 @@ public class MainActivity extends Activity {
    if(startMs>now+15000||endMs<=now+15000||endMs-now>90000||score<85||!Double.isFinite(stake)||stake<=0||stake>100000)return;
    if(android.os.Build.VERSION.SDK_INT>=33&&checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=android.content.pm.PackageManager.PERMISSION_GRANTED)return;
    runOnUiThread(()->{try{
-    String channel="olympia_research_windows_v1";
+    String channel="olympia_research_windows_sound_v2";
     android.app.NotificationManager nm=(android.app.NotificationManager)getSystemService(NOTIFICATION_SERVICE);
-    if(android.os.Build.VERSION.SDK_INT>=26){android.app.NotificationChannel ch=new android.app.NotificationChannel(channel,"Olympia research UP/DOWN alerts",android.app.NotificationManager.IMPORTANCE_HIGH);ch.enableVibration(true);nm.createNotificationChannel(ch);}
+    if(android.os.Build.VERSION.SDK_INT>=26){android.app.NotificationChannel ch=new android.app.NotificationChannel(channel,"Olympia research UP/DOWN alerts",android.app.NotificationManager.IMPORTANCE_HIGH);ch.enableVibration(true);ch.setVibrationPattern(new long[]{0,350,160,350,160,550});ch.setSound(android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION),new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_EVENT).build());nm.createNotificationChannel(ch);}
     java.text.SimpleDateFormat fmt=new java.text.SimpleDateFormat("hh:mm:ss a",java.util.Locale.getDefault());
     String time=fmt.format(new java.util.Date(startMs))+" – "+fmt.format(new java.util.Date(endMs));
     String title=("UP".equals(direction)?"🟢 UP":"🔴 DOWN")+" · EUR/USD OTC · RESEARCH";
