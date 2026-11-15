@@ -334,6 +334,24 @@ function v11NotifyIfNeeded(h,ts){
  try{window.EnvargSource?.notifyMarketCondition?.(h.level,'EUR/USD OTC · 5m · '+v11Current.trend+' trend · strength '+v11Current.score+'/100')}catch(e){}
 }
 v11Load();
+let olLastResearchAlert='';
+function olNotifyResearchWindow(symbol,pts){
+ try{
+  if(!liveMode||symbol!=='EURUSD_OTC'||!$('v11Notify').checked||!Array.isArray(pts)||pts.length<42)return;
+  const last=pts[pts.length-1],now=Date.now(),age=now-last.ts;
+  if(age<0||age>60000||marketHealth.level!=='EXCELLENT'||v11Current.falseSignal||v11Current.score<85)return;
+  const dir=v11Current.trend;
+  if(!['UP','DOWN'].includes(dir)||olLastResearchAlert===String(last.ts))return;
+  const gate=window.ol2050Gate?.(pts,last.ts);
+  if(!gate?.allow)return;
+  // A short-lived research window, never an order instruction or guaranteed entry.
+  const end=Math.min(last.ts+300000,now+60000);
+  if(end-now<30000)return;
+  if(typeof window.EnvargSource?.notifyResearchWindow!=='function')return;
+  window.EnvargSource.notifyResearchWindow(dir,symbol,now,end,gate.stake,v11Current.score);
+  olLastResearchAlert=String(last.ts);
+ }catch(e){try{$('sourceDiag').textContent='Research alert unavailable: '+e.message}catch(_){}}
+}
 function liveEvaluate(symbol,pts){
  const now=Date.now(),maxAge=11*60000;
  if(!pts.length||now-pts[pts.length-1].ts>maxAge)throw Error('STALE candle: last '+new Date(pts[pts.length-1].ts).toLocaleTimeString());
@@ -342,7 +360,7 @@ function liveEvaluate(symbol,pts){
  for(let t of liveOpen.filter(v=>v.symbol===symbol)){
   if(map.has(t.expiry)){let end=map.get(t.expiry);t.exit=end;t.originalWin=end===t.entry?null:(end>t.entry)===(t.dir==='UP');t.reverseWin=t.originalWin===null?null:!t.originalWin;t.win=t.mode==='original'?t.originalWin:t.mode==='reverse'?t.reverseWin:null;t.pnl=t.win===null?0:t.win?t.entryPayout*t.stake:-t.stake;t.settled=true;liveSettled.push(t);if(t.features)researchStore(t);v11Record(t)}
  }
- liveOpen=liveOpen.filter(t=>!t.settled);archiveSettled(liveTrades);marketHealth=marketHealthAssess(pts,symbol);marketHealthRender();v11Current=v11Metrics(pts,pts.length-1);olTargetUpdate();ol2050Update(pts);v11HealthRecord(pts,symbol,marketHealth);v11Render();v11NotifyIfNeeded(marketHealth,pts[pts.length-1].ts);
+ liveOpen=liveOpen.filter(t=>!t.settled);archiveSettled(liveTrades);marketHealth=marketHealthAssess(pts,symbol);marketHealthRender();v11Current=v11Metrics(pts,pts.length-1);olTargetUpdate();ol2050Update(pts);v11HealthRecord(pts,symbol,marketHealth);v11Render();olNotifyResearchWindow(symbol,pts);
  // Only issue virtual signals on newly observed latest candle. Older candles warm up loss scoring.
  for(let i=3;i<pts.length;i++){
   let p=pts[i],key=symbol+':'+p.ts;if(liveSeen.has(key))continue;
