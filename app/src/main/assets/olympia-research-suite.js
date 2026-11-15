@@ -21,18 +21,33 @@ function classify(pts){
  return {regime,eff,flips,ratio,avg,net,moves,direction:net>0?'UP':net<0?'DOWN':'FLAT'};
 }
 function candidates(pts,x){
- const a=pts.slice(-22),last=a[a.length-1],prev=a[a.length-2],high=Math.max(...a.slice(0,-1).map(z=>z.price)),low=Math.min(...a.slice(0,-1).map(z=>z.price));
- const m=x.moves,dir=x.direction,out=[];
- if(dir!=='FLAT')out.push({name:'Momentum',dir,eligible:x.eff>.35});
- if(x.avg>0&&last.price>high&&last.price-prev.price>x.avg*1.5)out.push({name:'Volatility Breakout',dir:'UP',eligible:true});
- if(x.avg>0&&last.price<low&&prev.price-last.price>x.avg*1.5)out.push({name:'Volatility Breakout',dir:'DOWN',eligible:true});
- if(x.avg>0&&last.price>=high-x.avg&&last.price<prev.price)out.push({name:'Range Reversal',dir:'DOWN',eligible:true});
- if(x.avg>0&&last.price<=low+x.avg&&last.price>prev.price)out.push({name:'Range Reversal',dir:'UP',eligible:true});
- if(m.slice(-3).every(z=>z>0))out.push({name:'Micro Trend',dir:'UP',eligible:true});
- if(m.slice(-3).every(z=>z<0))out.push({name:'Micro Trend',dir:'DOWN',eligible:true});
- if(x.avg>0&&prev.price>high&&last.price<high)out.push({name:'False Breakout',dir:'DOWN',eligible:true});
- if(x.avg>0&&prev.price<low&&last.price>low)out.push({name:'False Breakout',dir:'UP',eligible:true});
- return out.filter(z=>z.eligible);
+ const a=pts.slice(-42),p=a.map(z=>z.price),n=p.length-1,last=p[n],prev=p[n-1],before=p[n-2],m=x.moves,avg=x.avg||1e-12;
+ const hi=(i,j)=>Math.max(...p.slice(i,j)),lo=(i,j)=>Math.min(...p.slice(i,j)),h=hi(n-20,n),l=lo(n-20,n),range=h-l;
+ const recent=m.slice(-3),old=m.slice(-6,-3),ma=k=>p.slice(-k).reduce((u,v)=>u+v,0)/k;
+ const r=[],add=(name,dir,condition)=>{if(condition&&dir!=='FLAT')r.push({name,dir,eligible:true})};
+ const dir=x.direction,opp=dir==='UP'?'DOWN':'UP',delta=last-prev,prior=prev-before,rise=delta>0?'UP':delta<0?'DOWN':'FLAT';
+ const nearHigh=last>=h-avg,nearLow=last<=l+avg,signs=m.slice(-6).map(z=>Math.sign(z));
+ add('Strong Trend',dir,x.eff>.6&&x.flips<=7);
+ add('Trend Pullback',dir,x.eff>.35&&rise!==dir&&rise!=='FLAT'&&Math.abs(delta)<avg*1.6);
+ add('Range Reversal',nearHigh?'DOWN':'UP',x.regime==='RANGING'&&(nearHigh||nearLow)&&Math.abs(delta)<avg*1.4);
+ add('False Breakout',prev>hi(n-21,n-1)?'DOWN':'UP',(prev>hi(n-21,n-1)&&last<h)||(prev<lo(n-21,n-1)&&last>l));
+ add('Breakout Retest',last>h?'UP':'DOWN',(last>h&&prev<=h)||(last<l&&prev>=l));
+ add('Three-Candle Momentum',rise,recent.every(v=>v>0)||recent.every(v=>v<0));
+ add('Exhaustion',prior>0?'DOWN':'UP',Math.abs(prior)>avg*2&&Math.abs(delta)<Math.abs(prior)*.35);
+ // Wick Rejection, Inside Candle and Engulfing require OHLC, unavailable in price-only source.
+ add('Volatility Expansion',rise,x.ratio>1.7&&Math.abs(delta)>avg*1.5);
+ add('Volatility Compression',dir,x.ratio<.65&&x.eff>.3);
+ add('Trend Acceleration',dir,x.eff>.4&&recent.reduce((u,v)=>u+Math.abs(v),0)>old.reduce((u,v)=>u+Math.abs(v),0)*1.6);
+ add('Trend Deceleration',opp,x.eff>.4&&recent.reduce((u,v)=>u+Math.abs(v),0)<old.reduce((u,v)=>u+Math.abs(v),0)*.55);
+ add('Alternating Candles',rise==='UP'?'DOWN':'UP',signs.every((v,i)=>i===0||v*signs[i-1]<0));
+ add('Support Resistance',nearHigh?'DOWN':'UP',range>avg*3&&(nearHigh||nearLow)&&x.eff<.45);
+ // Time DNA is descriptive only until independently validated.
+ add('Market Regime Switch',dir,x.regime==='TRENDING'&&x.eff>.55);
+ add('Multi-Timeframe Agreement',dir,(ma(5)>ma(15)&&ma(15)>ma(30)&&dir==='UP')||(ma(5)<ma(15)&&ma(15)<ma(30)&&dir==='DOWN'));
+ // Skipped Signal Replay is observational, not an entry rule.
+ add('Micro Trend',rise,recent.every(v=>v>0)||recent.every(v=>v<0));
+ add('Volatility Breakout',rise,(last>h||last<l)&&Math.abs(delta)>avg*1.5);
+ return r;
 }
 function settle(pts){
  const map=new Map(pts.map(x=>[x.ts,x.price]));let changed=false;
@@ -46,19 +61,19 @@ function explanation(x,c,gate,selected){
  return a.join(' · ')+' · ये भविष्यवाणी नहीं है';
 }
 function render(pts,integrity,x,gate,selected){
- const done=records.filter(z=>z.status==='WIN'||z.status==='LOSS'),st=stats(records);
+ const done=records.filter(z=>(z.status==='WIN'||z.status==='LOSS')&&z.kind==='CANDIDATE'),st=stats(records.filter(z=>z.kind==='CANDIDATE'));
  put('rsForward','FORWARD: '+records.filter(z=>z.kind==='CANDIDATE').length);put('rsWin','WIN: '+st.w);put('rsLoss','LOSS: '+st.l);put('rsSkip','SKIPPED: '+records.filter(z=>z.kind==='SKIPPED').length);
  if(!integrity.ok){put('rsData','SOURCE: BLOCKED');put('rsExplain','Data Integrity Guardian: '+integrity.reason);return}
  put('rsData','SOURCE: VERIFIED');put('rsRegime','REGIME: '+x.regime);
  const votes={direction:x.eff>.4,consistency:x.flips<=8,volatility:x.ratio>=.65&&x.ratio<=1.6,data:true,risk:gate,history:st.n>=100,regime:x.regime==='TRENDING'};
  put('rsCouncil','7 AGENTS: '+Object.values(votes).filter(Boolean).length+'/7');
  put('rsExplain',explanation(x,null,gate,selected));
- const names=[...new Set(records.map(z=>z.strategy))];
- const ranks=names.map(name=>({name,s:stats(records.filter(z=>z.strategy===name))})).sort((a,b)=>b.s.n-a.s.n);
+ const names=[...new Set(records.filter(z=>z.kind==='PATTERN_TEST').map(z=>z.strategy))];
+ const ranks=names.map(name=>({name,s:stats(records.filter(z=>z.strategy===name&&z.kind==='PATTERN_TEST'))})).sort((a,b)=>b.s.n-a.s.n);
  put('rsStrategy','Strategy Tournament (observation only): '+(ranks.slice(0,5).map(z=>z.name+' '+z.s.w+'W/'+z.s.l+'L ('+z.s.n+' settled)').join(' · ')||'awaiting records')+' · No auto-switch until independent validation');
- const time=slot(integrity.last.ts),same=records.filter(z=>z.slot===time),ts=stats(same);
+ const time=slot(integrity.last.ts),same=records.filter(z=>z.slot===time&&z.kind==='CANDIDATE'),ts=stats(same);
  put('rsTime','Time DNA '+time+' · '+ts.w+'W/'+ts.l+'L · sample '+ts.n+' · '+(ts.n<30?'insufficient evidence':'historical only'));
- const lastLoss=records.slice().reverse().find(z=>z.status==='LOSS');
+ const lastLoss=records.slice().reverse().find(z=>z.status==='LOSS'&&z.kind==='CANDIDATE');
  put('rsAutopsy',lastLoss?'Last LOSS autopsy: '+lastLoss.strategy+' · '+lastLoss.regime+' · '+lastLoss.dir+' · '+new Date(lastLoss.ts).toLocaleString()+' · direction failed after 5m; cause not established':'No settled LOSS to analyze');
  put('rsForecast','Scenario simulator (not predictions): next candle could rise, fall or remain flat; observed mean move '+x.avg.toFixed(6)+' · illustrative ±'+(x.avg*1.5).toFixed(6));
  put('rsConfidence',st.n<100?'Observed sample '+st.n+'/100; no calibrated forecast':('Observed '+(st.p*100).toFixed(1)+'% WIN · 95% Wilson lower bound '+(100*wilson(st)).toFixed(1)+'% · not independent validation'));
@@ -73,7 +88,7 @@ window.olResearchSuite=function(pts){
  if(v.age<=60000&&!records.some(z=>z.id==='RS|'+v.last.ts)){
   const kind=chosen?'CANDIDATE':'SKIPPED';
   records.push({id:'RS|'+v.last.ts,ts:v.last.ts,expiry:v.last.ts+300000,entry:v.last.price,dir:chosen?.dir||x.direction,strategy:chosen?.name||'No pattern',regime:x.regime,slot:slot(v.last.ts),kind,status:chosen&&chosen.dir?'PENDING':'NO_ENTRY',riskPassed:gate,eff:x.eff});
-  records=records.slice(-6000);save();
+  for(const candidate of all){records.push({id:'PAT|'+v.last.ts+'|'+candidate.name,ts:v.last.ts,expiry:v.last.ts+300000,entry:v.last.price,dir:candidate.dir,strategy:candidate.name,regime:x.regime,slot:slot(v.last.ts),kind:'PATTERN_TEST',status:'PENDING',riskPassed:gate,eff:x.eff})}records=records.slice(-6000);save();
  }
  render(pts,v,x,gate,chosen);
  }catch(e){put('rsData','SOURCE: ERROR');put('rsExplain','Research Suite error: '+e.message)}
