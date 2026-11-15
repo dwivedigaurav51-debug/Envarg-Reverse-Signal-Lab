@@ -76,6 +76,7 @@ window.ol2050Gate=function(pts,candleTs){
  return {allow:true,stake:Number(proposed.toFixed(2)),payout:pay,reason:'Research-only virtual entry'};
  }catch(e){return {allow:false,reason:'Risk gate error: '+e.message}}
 };
+window.ol2050ResearchSnapshot=function(pts){try{return model(pts)}catch(e){return null}};
 window.ol2050Update=function(pts){if(pts)lastPts=pts;try{render(model(lastPts))}catch(e){set('ol2050Evidence','Module unavailable: '+e.message)}};
 function exportJson(name,data){const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),3000)}
 $('olExportBlackBox').onclick=()=>exportJson('Olympia2050_BlackBox.json',{exportedAt:new Date().toISOString(),audit,oneWay:typeof oneWayDays!=='undefined'?oneWayDays:[],healthHistory:typeof v11DailyHealth!=='undefined'?v11DailyHealth:[],paperTrades:savedTrades});
