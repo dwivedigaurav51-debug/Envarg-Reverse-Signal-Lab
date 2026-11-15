@@ -68,6 +68,14 @@ function render(pts,integrity,x,gate,selected){
  const votes={direction:x.eff>.4,consistency:x.flips<=8,volatility:x.ratio>=.65&&x.ratio<=1.6,data:true,risk:gate,history:st.n>=100,regime:x.regime==='TRENDING'};
  put('rsCouncil','7 AGENTS: '+Object.values(votes).filter(Boolean).length+'/7');
  put('rsExplain',explanation(x,null,gate,selected));
+ const cap=Number($('olCapital')?.value)||0,base=Number($('olStake')?.value)||0,riskPct=Number($('olRiskPct')?.value)||0,payout=Number($('olPayout')?.value)||85;
+ const budget=cap*riskPct/100,lossesToday=records.filter(z=>z.kind==='CANDIDATE'&&z.status==='LOSS'&&day(z.ts)===day(Date.now())).length;
+ const winsToday=records.filter(z=>z.kind==='CANDIDATE'&&z.status==='WIN'&&day(z.ts)===day(Date.now())).length;
+ const limited=Math.min(base,Math.max(0,budget-lossesToday*base)),profitLock=winsToday>lossesToday?base*.5:base,cooldown=lossesToday>=2?0:base;
+ put('rsMoney','Fixed $'+base.toFixed(2)+' | 1% Fractional $'+(cap*.01).toFixed(2)+' | Daily Cap $'+limited.toFixed(2)+' | Profit Lock $'+profitLock.toFixed(2)+' | 2-Loss Cooldown $'+cooldown.toFixed(2)+' | illustrative, not stake advice | payout break-even '+(100/(1+payout/100)).toFixed(1)+'%');
+ put('rsPatternCoverage','20 named patterns: 15 price-based rules + 3 OHLC-only unavailable + 2 observational; no fabricated OHLC');
+ put('rsResearchAlert',selected?'SHADOW '+selected.dir+' · '+selected.name+' · research only':'SHADOW WAIT · no current pattern');
+
  const names=[...new Set(records.filter(z=>z.kind==='PATTERN_TEST').map(z=>z.strategy))];
  const ranks=names.map(name=>({name,s:stats(records.filter(z=>z.strategy===name&&z.kind==='PATTERN_TEST'))})).sort((a,b)=>b.s.n-a.s.n);
  put('rsStrategy','Strategy Tournament (observation only): '+(ranks.slice(0,5).map(z=>z.name+' '+z.s.w+'W/'+z.s.l+'L ('+z.s.n+' settled)').join(' · ')||'awaiting records')+' · No auto-switch until independent validation');
