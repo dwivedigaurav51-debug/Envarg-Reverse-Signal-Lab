@@ -72,6 +72,27 @@ public class MainActivity extends Activity {
    });
   }
 
+  @JavascriptInterface public void notifyResearchWindow(String direction,String symbol,long startMs,long endMs,double stake,int score){
+   if(!("UP".equals(direction)||"DOWN".equals(direction))||!"EURUSD_OTC".equals(symbol))return;
+   long now=System.currentTimeMillis();
+   if(startMs>now+15000||endMs<=now+15000||endMs-now>90000||score<85||!Double.isFinite(stake)||stake<=0||stake>100000)return;
+   if(android.os.Build.VERSION.SDK_INT>=33&&checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=android.content.pm.PackageManager.PERMISSION_GRANTED)return;
+   runOnUiThread(()->{try{
+    String channel="olympia_research_windows_v1";
+    android.app.NotificationManager nm=(android.app.NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+    if(android.os.Build.VERSION.SDK_INT>=26){android.app.NotificationChannel ch=new android.app.NotificationChannel(channel,"Olympia research UP/DOWN alerts",android.app.NotificationManager.IMPORTANCE_HIGH);ch.enableVibration(true);nm.createNotificationChannel(ch);}
+    java.text.SimpleDateFormat fmt=new java.text.SimpleDateFormat("hh:mm:ss a",java.util.Locale.getDefault());
+    String time=fmt.format(new java.util.Date(startMs))+" – "+fmt.format(new java.util.Date(endMs));
+    String title=("UP".equals(direction)?"🟢 UP":"🔴 DOWN")+" · EUR/USD OTC · RESEARCH";
+    String body="Possible virtual window "+time+" · max illustrative stake $"+String.format(java.util.Locale.US,"%.2f",stake)+" · strength "+score+"/100. Not a guaranteed or live trade signal. Recheck before acting.";
+    Intent open=new Intent(MainActivity.this,MainActivity.class);
+    android.app.PendingIntent pending=android.app.PendingIntent.getActivity(MainActivity.this,0,open,android.app.PendingIntent.FLAG_UPDATE_CURRENT|android.app.PendingIntent.FLAG_IMMUTABLE);
+    android.app.Notification.Builder n=android.os.Build.VERSION.SDK_INT>=26?new android.app.Notification.Builder(MainActivity.this,channel):new android.app.Notification.Builder(MainActivity.this);
+    n.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle(title).setContentText(body).setStyle(new android.app.Notification.BigTextStyle().bigText(body)).setColor("UP".equals(direction)?0xff16c784:0xfff05263).setColorized(true).setContentIntent(pending).setAutoCancel(true).setPriority(android.app.Notification.PRIORITY_HIGH).setDefaults(android.app.Notification.DEFAULT_ALL).setWhen(now).setTimeoutAfter(Math.max(1000,endMs-now));
+    nm.notify(2050,n.build());
+   }catch(Exception ignored){}});
+  }
+
   @JavascriptInterface public void startMonitor(){runOnUiThread(()->{try{Intent i=new Intent(MainActivity.this,ScannerService.class);if(android.os.Build.VERSION.SDK_INT>=26)startForegroundService(i);else startService(i);}catch(Exception e){getSharedPreferences(ScannerService.PREF,0).edit().putString("lastError",e.toString()).apply();}});}
   @JavascriptInterface public void stopMonitor(){runOnUiThread(()->{Intent i=new Intent(MainActivity.this,ScannerService.class);i.setAction("STOP");startService(i);});}
   @JavascriptInterface public String monitorStatus(){android.content.SharedPreferences p=getSharedPreferences(ScannerService.PREF,0);JSONObject j=new JSONObject();try{j.put("running",p.getBoolean("running",false));j.put("lastCheck",p.getLong("lastCheck",0));j.put("sourceItems",p.getInt("sourceItems",0));j.put("error",p.getString("lastError",""));j.put("nativeHistory",new org.json.JSONArray(p.getString("nativeHistory","[]")));j.put("lastSignalTs",p.getLong("lastSignalTs",0));j.put("lastSignalDir",p.getString("lastSignalDir",""));j.put("lastSignalType",p.getString("lastSignalType",""));j.put("lastSignalRecordedAt",p.getLong("lastSignalRecordedAt",0));}catch(Exception ignored){}return j.toString();}
