@@ -91,4 +91,45 @@ $('olAsk').onclick=()=>{
 };
 for(const id of ['olCapital','olStake','olRiskPct','olTarget','olPayout'])$(id).addEventListener('change',()=>window.ol2050Update(null));
 window.ol2050Update(null);
+
+/* Quantum X: forward-only, research-only adaptive market classifier. */
+const QX_KEY='olympia_quantum_x_v1';
+let qx=[];
+try{const v=JSON.parse(localStorage.getItem(QX_KEY)||'[]');if(Array.isArray(v))qx=v.filter(x=>x&&typeof x.id==='string').slice(-3000)}catch(e){}
+window.olQuantumX=function(pts){
+ try{
+  const integrity=Array.isArray(pts)&&pts.length>=42&&pts.slice(-42).every((p,i,a)=>Number.isFinite(p.ts)&&Number.isFinite(p.price)&&p.price>0&&(i===0||p.ts-a[i-1].ts===300000));
+  const last=integrity?pts[pts.length-1]:null,age=last?Date.now()-last.ts:Infinity;
+  const fresh=integrity&&age>=0&&age<=600000;
+  set('qxIntegrity',fresh?'DATA: VERIFIED':'DATA: STALE / GAP');
+  if(!fresh){set('qxRegime','REGIME: UNKNOWN');set('qxCouncil','COUNCIL: —');set('qxReason','No research candidate without 42 consecutive, recent, positive-price 5m candles');return}
+  const a=pts.slice(-22),moves=a.slice(1).map((p,i)=>p.price-a[i].price),abs=moves.map(Math.abs);
+  const sum=abs.reduce((x,y)=>x+y,0),net=moves.reduce((x,y)=>x+y,0),eff=sum?Math.abs(net)/sum:0;
+  const avg=sum/moves.length,short=abs.slice(-5).reduce((x,y)=>x+y,0)/5,long=abs.slice(0,16).reduce((x,y)=>x+y,0)/16,vol=long?short/long:1;
+  const flips=moves.slice(1).filter((v,i)=>v*moves[i]<0).length;
+  const regime=vol>1.8?'VOLATILE':eff>=.55&&flips<=8?'TRENDING':eff<.25&&flips>=9?'CHOPPY':'RANGING';
+  const direction=net>0?'UP':net<0?'DOWN':'FLAT';
+  const votes={direction:eff>.4,consistency:flips<=8,volatility:vol>=.65&&vol<=1.6,freshness:true,risk:typeof window.ol2050Gate==='function'&&!!window.ol2050Gate(pts,last.ts)?.allow,history:qx.filter(x=>x.status!=='PENDING').length>=30,regime:regime==='TRENDING'};
+  const count=Object.values(votes).filter(Boolean).length;
+  set('qxRegime','REGIME: '+regime);set('qxCouncil','COUNCIL: '+count+'/7');
+  set('qxReason','Observed '+direction+' · efficiency '+(100*eff).toFixed(0)+'% · flips '+flips+'/20 · volatility ratio '+vol.toFixed(2)+' · '+Object.entries(votes).map(([k,v])=>k+':'+(v?'✓':'×')).join(' '));
+  let changed=false;
+  const map=new Map(pts.map(p=>[p.ts,p.price]));
+  for(const x of qx){if(x.status!=='PENDING'||!map.has(x.expiry))continue;const exit=map.get(x.expiry);x.status=exit===x.entry?'TIE':((exit>x.entry)===(x.dir==='UP')?'WIN':'LOSS');changed=true}
+  // Forward-only: record a single candidate at the latest observed candle; no retrospective wins.
+  if(age<=60000&&!qx.some(x=>x.id===String(last.ts))&&direction!=='FLAT'){
+   const strategy=regime==='TRENDING'?'Momentum shadow':regime==='RANGING'?'Range shadow':regime==='VOLATILE'?'Volatility shadow':'Chop shadow';
+   const dir=regime==='RANGING'||regime==='CHOPPY'?(moves[moves.length-1]>0?'DOWN':'UP'):direction;
+   qx.push({id:String(last.ts),ts:last.ts,expiry:last.ts+300000,entry:last.price,dir,strategy,regime,status:'PENDING',eff,flips});
+   qx=qx.slice(-3000);changed=true;
+  }
+  if(changed){try{localStorage.setItem(QX_KEY,JSON.stringify(qx))}catch(e){}}
+  const settled=qx.filter(x=>x.status==='WIN'||x.status==='LOSS'),wins=settled.filter(x=>x.status==='WIN').length,losses=settled.length-wins,ties=qx.filter(x=>x.status==='TIE').length;
+  set('qxCandidates','RESEARCH: '+qx.length);set('qxWins','WIN: '+wins);set('qxLosses','LOSS: '+losses);set('qxTies','TIE: '+ties);
+  const groups=[...new Set(qx.map(x=>x.strategy))].map(name=>{const v=qx.filter(x=>x.strategy===name),w=v.filter(x=>x.status==='WIN').length,l=v.filter(x=>x.status==='LOSS').length;return name+': '+w+'W / '+l+'L / '+v.filter(x=>x.status==='PENDING').length+' pending'});
+  set('qxStrategy',groups.join(' · ')||'Awaiting forward observations');
+  const lower=settled.length?Math.max(0,(wins/settled.length+1.96*1.96/(2*settled.length)-1.96*Math.sqrt((wins/settled.length)*(1-wins/settled.length)/settled.length+1.96*1.96/(4*settled.length*settled.length)))/(1+1.96*1.96/settled.length)):0;
+  set('qxQuality',settled.length<100?'Unvalidated sample '+settled.length+'/100 · observed outcomes are NOT a probability forecast':'Observed WIN '+(100*wins/settled.length).toFixed(1)+'% · Wilson 95% lower bound '+(100*lower).toFixed(1)+'% · still needs independent out-of-sample validation');
+ }catch(e){set('qxIntegrity','DATA: ERROR');set('qxReason','Research module error: '+e.message)}
+};
 })();
