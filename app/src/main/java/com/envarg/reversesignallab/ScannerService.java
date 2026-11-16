@@ -27,7 +27,7 @@ public class ScannerService extends Service {
  private final ExecutorService worker=Executors.newSingleThreadExecutor();
  private volatile boolean active=false;
  private final Runnable tick=new Runnable(){public void run(){if(!active)return;worker.execute(()->probe());handler.postDelayed(this,15000L);}};
- @Override public void onCreate(){super.onCreate();if(Build.VERSION.SDK_INT>=26){NotificationChannel c=new NotificationChannel("envarg_scan","Virtual scanner status",NotificationManager.IMPORTANCE_LOW);getSystemService(NotificationManager.class).createNotificationChannel(c);NotificationChannel alert=new NotificationChannel("envarg_health","Market health alerts",NotificationManager.IMPORTANCE_HIGH);alert.setDescription("GOOD or EXCELLENT market conditions; not guaranteed wins");getSystemService(NotificationManager.class).createNotificationChannel(alert);}}
+ @Override public void onCreate(){super.onCreate();if(Build.VERSION.SDK_INT>=26){NotificationChannel c=new NotificationChannel("envarg_scan","Virtual scanner status",NotificationManager.IMPORTANCE_LOW);getSystemService(NotificationManager.class).createNotificationChannel(c);NotificationChannel alert=new NotificationChannel("envarg_health","Market health alerts",NotificationManager.IMPORTANCE_HIGH);alert.setDescription("GOOD or EXCELLENT market conditions; not guaranteed wins");getSystemService(NotificationManager.class).createNotificationChannel(alert);NotificationChannel trend=new NotificationChannel("olympia_oneway_v1","One-way 5-minute trend research alerts",NotificationManager.IMPORTANCE_HIGH);trend.enableVibration(true);getSystemService(NotificationManager.class).createNotificationChannel(trend);}}
  @Override public int onStartCommand(Intent intent,int flags,int startId){
  if(intent!=null&&"STOP".equals(intent.getAction())){stopScanner();return START_NOT_STICKY;}
  Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,"envarg_scan"):new Notification.Builder(this);
@@ -45,10 +45,47 @@ public class ScannerService extends Service {
   JSONArray charts=root.optJSONArray("charts"),candles=root.optJSONArray("candles");if(candles==null&&charts!=null){for(int i=0;i<charts.length();i++){JSONObject chart=charts.optJSONObject(i);if(chart==null)continue;int frame=chart.optInt("candle_frame",chart.optInt("frame",chart.optInt("timeframe",300)));if(frame!=300)continue;JSONObject asset=chart.optJSONObject("asset");if(asset!=null&&!asset.optString("symbol","EURUSD_OTC").equals("EURUSD_OTC"))continue;candles=chart.optJSONArray("candles");if(candles!=null)break;}}
   if(candles==null)return;TreeMap<Long,Double> pts=new TreeMap<>();
   for(int i=0;i<candles.length();i++){Object obj=candles.opt(i);long t=0;double c=Double.NaN;if(obj instanceof JSONArray){JSONArray a=(JSONArray)obj;t=a.optLong(0);c=a.optDouble(1,Double.NaN);}else if(obj instanceof JSONObject){JSONObject a=(JSONObject)obj;t=a.optLong("ts",a.optLong("time",a.optLong("timestamp",a.optLong("t",0))));c=a.optDouble("c",a.optDouble("close",a.optDouble("closing_price",Double.NaN)));}if(t>1000000000000000L)t/=1000;if(t>0&&t<100000000000L)t*=1000;if(t>0&&Double.isFinite(c)&&c>0)pts.put(t,c);}
-  if(pts.size()<5)return;settlePending(pts);assessMarketHealth(pts);long latest=pts.lastKey();if(System.currentTimeMillis()-latest>660000L)return;
+  if(pts.size()<5)return;settlePending(pts);assessMarketHealth(pts);detectOneWayTrend(pts);long latest=pts.lastKey();if(System.currentTimeMillis()-latest>660000L)return;
   Double prev=pts.get(latest-900000L),entry=pts.get(latest);if(prev==null||entry==null||entry.equals(prev))return;
   String dir=entry>prev?"UP":"DOWN";SharedPreferences p=getSharedPreferences(PREF,0);long old=p.getLong("lastSignalTs",0);
   if(latest>old){saveCandidate(latest,entry,dir,pts);}
+ }
+
+ private void detectOneWayTrend(TreeMap<Long,Double> pts){
+  // Research-only trend observation. No claim that next 5-minute trade will win.
+  if(pts.size()<12)return;
+  java.util.ArrayList<Map.Entry<Long,Double>> a=new java.util.ArrayList<>(pts.entrySet());
+  a=new java.util.ArrayList<>(a.subList(a.size()-12,a.size()));
+  for(int i=1;i<a.size();i++)if(a.get(i).getKey()-a.get(i-1).getKey()!=300000L)return;
+  long ts=a.get(11).getKey(),age=System.currentTimeMillis()-ts;
+  if(age<0||age>360000L)return;
+  int up=0,down=0;double path=0,net=0;
+  for(int i=6;i<12;i++){double d=a.get(i).getValue()-a.get(i-1).getValue();path+=Math.abs(d);net+=d;if(d>0)up++;else if(d<0)down++;}
+  double efficiency=path>0?Math.abs(net)/path:0;
+  String dir=net>0?"UP":"DOWN";boolean strong=(up>=5||down>=5)&&efficiency>=.68&&path>0;
+  SharedPreferences pref=getSharedPreferences(PREF,0);
+  String previous=pref.getString("onewayDir","NONE");
+  long lastAlert=pref.getLong("onewayAlertTs",0);
+  if(!strong){
+   if(!previous.equals("NONE")){pref.edit().putString("onewayDir","NONE").apply();notifyOneWay("REVERSAL WARNING","Previously observed trend weakened. Avoid assuming continuation.",ts);}
+   return;
+  }
+  if(!dir.equals(previous)||ts-lastAlert>=900000L){
+   pref.edit().putString("onewayDir",dir).putLong("onewayAlertTs",ts).apply();
+   notifyOneWay(dir,"EUR/USD OTC 5m: "+(dir.equals("UP")?up:down)+"/6 moves "+dir+"; observed efficiency "+Math.round(efficiency*100)+"%. Research only; next candle may reverse.",ts);
+  }
+ }
+ private void notifyOneWay(String direction,String body,long candle){
+  if(Build.VERSION.SDK_INT>=33&&checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=android.content.pm.PackageManager.PERMISSION_GRANTED)return;
+  try{
+   Notification.Builder n=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,"olympia_oneway_v1"):new Notification.Builder(this);
+   Intent open=new Intent(this,MainActivity.class);open.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP);
+   PendingIntent pending=PendingIntent.getActivity(this,320,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+   n.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("OLYMPIA · "+direction+" · 5m TREND WATCH")
+    .setContentText(body).setStyle(new Notification.BigTextStyle().bigText(body))
+    .setContentIntent(pending).setAutoCancel(true).setPriority(Notification.PRIORITY_HIGH).setDefaults(Notification.DEFAULT_ALL);
+   ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(320,n.build());
+  }catch(Exception ignored){}
  }
  private void assessMarketHealth(TreeMap<Long,Double> pts){
   if(pts.size()<41)return;
